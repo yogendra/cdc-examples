@@ -24,9 +24,9 @@ Here are the steps to run this app
     ```
 5. Run the jar that has been created
     ```
-    java -jar target/dbz-embedded-yb-app.jar -master_addresses <Your-IP>:7100 -stream_id <Stream_ID> -table_include_list public.test
+    java -jar target/dbz-embedded-yb-app.jar --master_addresses <Your-IP>:7100 --stream_id <Stream_ID> --table_include_list public.test
     ```
 > **Note:**
-> Currently only three config properties (i.e. master_addresses, stream_id and table_include_list) are accepted via Command Line. If needed more configs can be added like [this](https://github.com/Sumukh-Phalgaonkar/dbz-embedded-yb-app/blob/main/src/main/java/com/dbzapp/CmdLineOpts.java#L65)
+> Currently few config properties (i.e. master_addresses, stream_id and table_include_list) are accepted via Command Line. If needed more configs can be added like [this](https://github.com/Sumukh-Phalgaonkar/dbz-embedded-yb-app/blob/main/src/main/java/com/dbzapp/CmdLineOpts.java#L65)
 
 6. Now you can perform operations on your table in YugabyteDB and resulting change records will be printed by the app.
