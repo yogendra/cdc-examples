@@ -19,7 +19,7 @@ import org.apache.commons.cli.Options;
 public class CmdLineOpts {
   private final String connectorClass = "io.debezium.connector.yugabytedb.YugabyteDBConnector";
   private String masterAddresses = "127.0.0.1:7100";
-  private String hostname = "127.0.0.1";
+  private String hostname = masterAddresses.split(",")[0].split(":")[0];
   private String databasePort = "5433";
   private String streamId;
   private String tableIncludeList;
@@ -79,7 +79,7 @@ public class CmdLineOpts {
     masterAddresses = cmd.getOptionValue("master_addresses", masterAddresses);
     streamId = cmd.getOptionValue( "stream_id");
     tableIncludeList = cmd.getOptionValue( "table_include_list");
-    hostname =cmd.getOptionValue( "hostname", hostname);
+    hostname =cmd.getOptionValue( "hostname", masterAddresses.split(",")[0].split(":")[0]);
     databasePort = cmd.getOptionValue( "port", databasePort );
     databaseName = cmd.getOptionValue( "database", databaseName );
     databaseUser = cmd.getOptionValue( "user", databaseUser );
