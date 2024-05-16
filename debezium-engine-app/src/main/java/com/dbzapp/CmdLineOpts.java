@@ -87,9 +87,7 @@ public class CmdLineOpts {
     snapshotMode = cmd.getOptionValue( "snapshot_mode", snapshotMode );
     offsetFile = cmd.getOptionValue( "offset_file", offsetFile);
   }
-  public String getOffsetFile() {
-    return offsetFile;
-  }
+
   public Properties asProperties() {
     Properties props = new Properties();
     props.setProperty("connector.class", connectorClass);
