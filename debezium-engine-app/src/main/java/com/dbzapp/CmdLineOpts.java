@@ -1,9 +1,7 @@
 package com.dbzapp;
 
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.Properties;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
