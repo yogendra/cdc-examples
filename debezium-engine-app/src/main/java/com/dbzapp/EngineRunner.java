@@ -23,7 +23,8 @@ public class EngineRunner {
 
   public void run() throws Exception {
     final Properties props = config.asProperties();
-
+    System.out.println("Engine properties");
+    props.list(System.out);
     // Create the engine with this configuration ...
     try (DebeziumEngine<ChangeEvent<String, String>> engine = DebeziumEngine.create(Json.class)
             .using(props)
