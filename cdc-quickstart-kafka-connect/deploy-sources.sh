@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-
+KAFKA_CONNECT_HOST=${KAFKA_CONNECT_HOST:-localhost}
 # Deploy connector 1
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector1",
   "config": {
     "tasks.max":"2",
@@ -27,7 +27,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 sleep 1;
 
 # Deploy connector 2
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector2",
   "config": {
     "tasks.max":"2",
@@ -52,7 +52,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 sleep 1;
 
 # Deploy connector 3
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector3",
   "config": {
     "tasks.max":"2",
@@ -77,7 +77,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 sleep 1;
 
 # Deploy connector 4
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector4",
   "config": {
     "tasks.max":"2",

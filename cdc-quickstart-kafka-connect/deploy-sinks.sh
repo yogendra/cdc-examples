@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+KAFKA_CONNECT_HOST=${KAFKA_CONNECT_HOST:-localhost}
 
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-1",
   "config": {
     "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
@@ -27,7 +28,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 
 sleep 1;
 
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-2",
   "config": {
     "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
@@ -54,7 +55,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 
 sleep 1;
 
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-3",
   "config": {
     "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
@@ -81,7 +82,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 
 sleep 1;
 
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:8083/connectors/ -d '{
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-4",
   "config": {
     "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
