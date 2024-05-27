@@ -1,3 +1,7 @@
+# curl -o docker-compose.yml -sSL https://raw.githubusercontent.com/yogendra/cdc-examples/main/cdc-quickstart-kafka-connect/docker-compose.v2.yaml
+# docker compose down -v --remove-orphans
+# docker compose up -d
+# docker compose logs -f cdc-setup
 ---
 services:
   zookeeper:
@@ -175,11 +179,13 @@ services:
       YB_USER: yugabyte
       YB_PASSWORD: ""
       YB_DB: demo
+      YB_PORT: 5433
       YB_MASTERS: yugabyted-0:7100
       PG_HOST: pg
       PG_USER: postgres
       PG_PASSWORD: postgres
       PG_DB: postgres
+      PG_PORT: 5432
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       KAFKA_CONNECT_HOST: kafka-connect
     volumes:
@@ -196,18 +202,18 @@ services:
         echo " Ready!"
 
         echo -n "Wait for Postgres ($$PG_HOST) to be ready: ."
-        until PGPASSWORD=$$PG_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$PG_HOST -p 5432 -t 5 -U $$PG_USER -d $$PG_DB &> /dev/null; do
+        until PGPASSWORD=$$PG_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$PG_HOST -p $$PG_PORT -t 5 -U $$PG_USER -d $$PG_DB &> /dev/null; do
             echo -n "."
             sleep 5
         done
         echo " Ready!"
 
         echo "Wait for Kafka Connect / Debezium ($$KAFKA_CONNECT_HOST) to be ready: ."
-        until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083 &> /dev/null ; do
+        until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083/connectors &> /dev/null ; do
             echo -n "."
             sleep 5
         done
-        echo "echo " Ready!""
+        echo " Ready!"
 
         echo "Prepare source YugabyteDB Cluster"
         echo "YugabyteDB: Create database demo"
@@ -219,8 +225,96 @@ services:
         STREAM_ID=$$(/home/yugabyte/bin/yb-admin --master_addresses $$YB_MASTERS create_change_data_stream ysql.demo |  sed 's/CDC Stream ID: //')
         echo Created Stream : $$STREAM_ID
 
-        /project/deploy-sources.sh $$STREAM_ID
-        /project/deploy-sinks.sh
+        function create_yb_source(){
+          stream_id=$$1; shift
+          connector_name=$$1; shift
+          table=$$1; shift
+          schema_registry_url="http://$$SCHEMA_REGISTRY_HOST_NAME:8081"
+          echo "Creating YB Source connector ($$connector_name) for $$table table"
+          connector_config='{
+            "name": "'$$connector_name'",
+            "config": {
+              "tasks.max":"2",
+              "connector.class": "io.debezium.connector.yugabytedb.YugabyteDBConnector",
+              "database.hostname":"'$$YB_HOST'",
+              "database.master.addresses":"'$$YB_MASTERS'",
+              "database.port":"'$$YB_PORT'",
+              "database.user": "'$$YB_USER'",
+              "database.password":"'$$YB_PASSWORD'",
+              "database.dbname":"'$$YB_DB'",
+              "database.server.name":"'$$connector_name'",
+              "snapshot.mode":"initial",
+              "database.streamid":"'$$stream_id'",
+              "table.include.list":"'$$table'",
+              "key.converter":"io.confluent.connect.avro.AvroConverter",
+              "key.converter.schema.registry.url":"'$$schema_registry_url'",
+              "value.converter":"io.confluent.connect.avro.AvroConverter",
+              "value.converter.schema.registry.url":"'$$schema_registry_url'"
+            }
+          }'
+          echo "Connector Config:
+          $$connector_config"
+          curl -sSLkfiX POST \
+            -H "Accept:application/json" \
+            -H "Content-Type:application/json" \
+            $$KAFKA_CONNECT_HOST:8083/connectors/ \
+            -d "$$connector_config"
+          echo .
+        }
+        function create_pg_sink(){
+          connector_name=$$1; shift
+          topics=$$1; shift
+          table=$$1; shift
+          pg_connection_url="jdbc:postgresql://$$PG_HOST:$$PG_PORT/$$PG_DB?user=$$PG_USER&password=$$PG_PASSWORD&sslMode=require"
+          schema_registry_url="http://$$SCHEMA_REGISTRY_HOST_NAME:8081",
+          connector_config='{
+            "name": "'$$connector_name'",
+            "config": {
+              "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+              "tasks.max": "1",
+                "topics": "'$$topics'",
+                "dialect.name": "PostgreSqlDatabaseDialect",
+                "table.name.format": "'$$table'",
+                "connection.url": "'$$pg_connection_url'",
+                "auto.create": "true",
+                "auto.evolve":"true",
+                "insert.mode": "upsert",
+                "pk.fields": "id",
+                "pk.mode": "record_key",
+                "delete.enabled":"true",
+                "transforms": "unwrap",
+                "transforms.unwrap.type": "io.debezium.connector.yugabytedb.transforms.YBExtractNewRecordState",
+                "transforms.unwrap.drop.tombstones": "false",
+                "key.converter":"io.confluent.connect.avro.AvroConverter",
+                "key.converter.schema.registry.url":"'$$schema_registry_url'",
+                "value.converter":"io.confluent.connect.avro.AvroConverter",
+                "value.converter.schema.registry.url":"'$$schema_registry_url'"
+            }
+          }'
+          echo "Connector Config:
+          $$connector_config"
+          curl -sSLkfiX POST \
+            -H "Accept:application/json" \
+            -H "Content-Type:application/json" \
+            $$KAFKA_CONNECT_HOST:8083/connectors/ \
+            -d "$$connector_config"
+          echo .
+        }
+        create_yb_source $$STREAM_ID ybconnector1 'public.orders[a-zA-Z0-9]*'
+        sleep 10
+        create_yb_source $$STREAM_ID ybconnector2 'public.products'
+        sleep 10
+        create_yb_source $$STREAM_ID ybconnector3 'public.users'
+        sleep 10
+        create_yb_source $$STREAM_ID ybconnector4 'public.reviews'
+        sleep 10
+        create_pg_sink pgconnector1 ybconnector1.public.orders orders
+        sleep 10
+        create_pg_sink pgconnector2 ybconnector2.public.products products
+        sleep 10
+        create_pg_sink pgconnector3 ybconnector3.public.users users
+        sleep 10
+        create_pg_sink pgconnector4 ybconnector4.public.reviews reviews
 
 
         echo "Put data in source YB database : PRODUCTS"
@@ -247,10 +341,10 @@ services:
           YB_ORDERS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from orders;')
           YB_REVIEWS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from reviews;')
 
-          PG_PRODUCTS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from products;')
-          PG_USERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from users;')
-          PG_ORDERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from orders;')
-          PG_REVIEWS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from reviews;')
+          PG_PRODUCTS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from products;' || echo 0)
+          PG_USERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from users;' || echo 0)
+          PG_ORDERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from orders;' || echo 0)
+          PG_REVIEWS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from reviews;' || echo 0)
           cat <<EOF
         [Compare Time : $$(date '+%Y-%m-%d %H:%m:%S.%s')]
         -------------------------------------------------
