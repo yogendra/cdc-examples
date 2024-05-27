@@ -1,0 +1,323 @@
+---
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:${KAFKA_VERSION}
+    hostname: zookeeper
+    container_name: zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_OPTS: -Dzookeeper.4lw.commands.whitelist=*
+    volumes:
+      - zk-data:/var/lib/zookeeper/data
+      - zk-log:/var/lib/zookeeper/log
+
+  broker:
+    image: confluentinc/cp-server:${KAFKA_VERSION}
+    hostname: broker
+    container_name: broker
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+
+    volumes:
+      - k-data:/var/lib/kafka/data
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:${KAFKA_VERSION}
+    hostname: schema-registry
+    container_name: schema-registry
+    restart: always
+    depends_on:
+      - broker
+    ports:
+      - "8081:8081"
+      - "39999:39999"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: broker:9092
+      SCHEMA_REGISTRY_JMX_PORT: 39999
+      SCHEMA_REGISTRY_JMX_HOSTNAME: schema-registry
+      SCHEMA_REGISTRY_JMX_OPTS: "-Dcom.sun.management.jmxremote.rmi.port=39999 -Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=schema-registry"
+
+  # kafka-connect:
+  #   image: confluentinc/cp-kafka-connect:${KAFKA_VERSION}
+  #   hostname: kafka-connect
+  #   container_name: kafka-connect
+  #   restart: always
+  #   depends_on:
+  #     - zookeeper
+  #     - broker
+  #     - schema-registry
+  #   ports:
+  #     - "8083:8083"
+  #   environment:
+  #     CONNECT_BOOTSTRAP_SERVERS: 'broker:9092'
+  #     CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+  #     CONNECT_REST_PORT: 8083
+  #     CONNECT_GROUP_ID: "connect"
+  #     CONNECT_PRODUCER_CLIENT_ID: "connect-worker-producer"
+  #     CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+  #     CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+  #     CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+  #     CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_STATUS_STORAGE_TOPIC: connect-status
+  #     CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+  #     CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+  #     CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+  #     CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
+  #     CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components
+  #     CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+  #     CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
+  #     CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+  #     CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
+  #     CONNECT_LOG4J_ROOT_LOGLEVEL: INFO,ERROR
+  #     CONNECT_TOPIC_CREATION_ENABLE: 'true'
+
+  #   command:
+  #     - bash
+  #     - -c
+  #     - |
+  #       echo "Installing connector plugins"
+  #       confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.7.4
+  #       sleep 10
+
+  #       echo "Installing yugabytedb connector"
+  #       curl -sSL "https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar" -o /etc/kafka-connect/jars/debezium-connector-yugabytedb-1.9.5.y.22.jar
+
+  #       sleep 10
+  #       #
+  #       echo "Launching Kafka Connect worker"
+  #       /etc/confluent/docker/run &
+  #       #
+  #       sleep infinity
+  kafka-connect:
+    image: quay.io/yugabyte/debezium-connector:latest
+    platform: linux/amd64
+    container_name: kafka-connect
+    hostname: kafka-connect
+    depends_on:
+      - zookeeper
+      - broker
+    ports:
+      - 8083:8083
+      - 9876:9876
+    restart: unless-stopped
+    environment:
+      BOOTSTRAP_SERVERS: "broker:9092"
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: kafka-connect_configs
+      OFFSET_STORAGE_TOPIC: kafka-connect_offset
+      STATUS_STORAGE_TOPIC: kafka-connect_status
+      HOST_NAME: "0.0.0.0"
+      REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+      KAFKA_JMX_PORT: '9876'
+      KAFKA_OPTS: "-javaagent:/kafka/etc/jmx_prometheus_javaagent-0.17.2.jar=9876:/etc/jmx-exporter/metrics.yml"
+
+  ksqldb-server:
+    image: confluentinc/cp-ksqldb-server:${KAFKA_VERSION}
+    hostname: ksqldb-server
+    container_name: ksqldb-server
+    depends_on:
+      - broker
+      - kafka-connect
+    ports:
+      - "8088:8088"
+    environment:
+      KSQL_CONFIG_DIR: "/etc/ksql"
+      KSQL_BOOTSTRAP_SERVERS: "broker:9092"
+      KSQL_HOST_NAME: ksqldb-server
+      KSQL_LISTENERS: "http://0.0.0.0:8088"
+      KSQL_CACHE_MAX_BYTES_BUFFERING: 0
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      KSQL_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      KSQL_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      KSQL_KSQL_CONNECT_URL: "http://kafka-connect:8083"
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: 1
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
+      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:${KAFKA_VERSION}
+    hostname: control-center
+    container_name: control-center
+    depends_on:
+      - broker
+      - schema-registry
+      - ksqldb-server
+      - kafka-connect
+    ports:
+      - "9021:9021"
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: 'broker:9092'
+      CONTROL_CENTER_CONNECT_CONNECT-DEFAULT_CLUSTER: 'http://kafka-connect:8083'
+      CONTROL_CENTER_KSQL_KSQLDB1_URL: "http://ksqldb-server:8088"
+      CONTROL_CENTER_KSQL_KSQLDB1_ADVERTISED_URL: "http://ksqldb-server:8088"
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONTROL_CENTER_CONNECT_HEALTHCHECK_ENDPOINT: '/connectors'
+      CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+      PORT: 9021
+  pg:
+    hostname: pg
+    container_name: pg
+    image: postgres:14-bullseye
+    restart: always
+    shm_size: 128mb
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  yugabyted-0:
+    container_name: yugabyted-0
+    hostname: yugabyted-0
+    image: yugabytedb/yugabyte:2.20.3.1-b2
+    command:
+    - sh
+    - -c
+    - |
+      /home/yugabyte/bin/yugabyted start --fault_tolerance=zone --daemon=false --advertise_address=yugabyted-0 --cloud_location=cloud.region.zone1
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "7000:7000"
+      - "7100:7100"
+      - "9000:9000"
+      - "5433:5433"
+      - "15433:15433"
+    healthcheck:
+      test: ["CMD", "/home/yugabyte/postgres/bin/pg_isready", "-h", "yugabyted-0"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  # prometheus:
+  #   ports:
+  #     - 9090:9090
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   environment:
+  #     NODE: yugabyted-0
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # grafana:
+  #   build:
+  #     context: ./grafana-dashboard
+  #   container_name: grafana
+  #   ports:
+  #     - 3000:3000
+  #   links:
+  #     - prometheus
+  #   environment:
+  #     - DS_PROMETHEUS=prometheus
+  cdc-setup:
+    container_name: cdc-setup
+    hostname: cdc-setup
+    image: yugabytedb/yugabyte:2.20.3.1-b2
+    depends_on:
+      kafka-connect:
+        condition: service_started
+      pg:
+        condition: service_started
+      yugabyted-0:
+        condition: service_healthy
+    environment:
+      NODE: yugabyted-0
+      MASTERS: yugabyted-0:7100
+      KAFKA_CONNECT_HOST: kafka-connect
+    volumes:
+    - ./:/project:ro
+    command:
+    - bash
+    - -c
+    - |
+        until /home/yugabyte/postgres/bin/pg_isready -h $$NODE -t 5; do
+            echo Wait for Yugabyted to be ready
+            sleep 2
+        done
+        echo "Yugabyted is ready"
+
+        /home/yugabyte/bin/ysqlsh -h $$NODE -c 'create database demo;'
+        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/schema.sql
+
+        STREAM_ID=$$(/home/yugabyte/bin/yb-admin --master_addresses $$MASTERS create_change_data_stream ysql.demo |  sed 's/CDC Stream ID: //')
+        echo Created Stream : $$STREAM_ID
+
+        until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083 &> /dev/null ; do
+            echo "Wait for kafka connect"
+            sleep 5
+        done
+        echo "Kafka Connect Ready"
+        /project/deploy-sources.sh $$STREAM_ID
+        /project/deploy-sinks.sh
+
+
+        echo "Put data in source YB database : PRODUCTS"
+        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/products.sql
+        sleep 2
+
+        echo "Put data in source YB database : USERS"
+        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/users.sql
+        sleep 2
+
+        echo "Put data in source YB database : REVIEWS"
+        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/reviews.sql
+        sleep 2
+
+        echo "Put data in source YB database : ORDERS"
+        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/orders.sql
+        sleep 2
+
+        while true;
+        do
+          echo "Get a record count on source database"
+          YB_PRODUCTS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from products;')
+          YB_USERS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from users;')
+          YB_ORDERS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from orders;')
+          YB_REVIEWS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from reviews;')
+
+          PG_PRODUCTS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from products;')
+          PG_USERS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from users;')
+          PG_ORDERS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from orders;')
+          PG_REVIEWS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from reviews;')
+          cat <<EOF
+        [Compare Time : $$(date '+%Y-%m-%d %H:%m:%S.%s')]
+        -------------------------------------------------
+        Record Type  |   YB   :   PG
+        -------------|-----------------------------------
+        Users        | $$YB_USERS : $$PG_USERS
+        Products     | $$YB_PRODUCTS : $$PG_PRODUCTS
+        Reviews      | $$YB_REVIEWS : $$PG_REVIEWS
+        Orders       | $$YB_ORDERS : $$PG_ORDERS
+        -------------------------------------------------
+        EOF
+          sleep 3
+        done
+        tail -f /dev/null
+
+volumes:
+  zk-data:
+  zk-log:
+  k-data:
