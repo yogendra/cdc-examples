@@ -9,6 +9,7 @@ PG_DB=${PG_DB:-postgres}
 PG_CONNECTION_URL="jdbc:postgresql://$PG_HOST:5432/$PG_DB?user=$PG_USER&password=$PG_PASSWORD&sslMode=require"
 SCHEMA_REGISTRY_URL="http://$SCHEMA_REGISTRY_HOST_NAME:8081",
 
+echo "Deploy PG sink connector: orders"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-1",
   "config": {
@@ -34,8 +35,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
    }
 }'
 
-sleep 1;
-
+sleep 5;
+echo "Deploy PG sink connector: products"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-2",
   "config": {
@@ -61,8 +62,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
    }
 }'
 
-sleep 1;
-
+sleep 5;
+echo "Deploy PG sink connector: users"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-3",
   "config": {
@@ -88,8 +89,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
    }
 }'
 
-sleep 1;
-
+sleep 5;
+echo "Deploy PG sink connector: reviews"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-4",
   "config": {
