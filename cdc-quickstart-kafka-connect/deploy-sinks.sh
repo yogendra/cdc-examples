@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 KAFKA_CONNECT_HOST=${KAFKA_CONNECT_HOST:-localhost}
+SCHEMA_REGISTRY_HOST_NAME=${SCHEMA_REGISTRY_HOST_NAME:-localhost}
+PG_HOST=${PG_HOST:-localhost}
+PG_USER=${PG_USER:-postgres}
+PG_PASSWORD=${PG_PASSWORD:-postgres}
+PG_DB=${PG_DB:-postgres}
+
+PG_CONNECTION_URL="jdbc:postgresql://$PG_HOST:5432/$PG_DB?user=$PG_USER&password=$PG_PASSWORD&sslMode=require"
+SCHEMA_REGISTRY_URL="http://$SCHEMA_REGISTRY_HOST_NAME:8081",
 
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "jdbc-sink-1",
@@ -9,7 +17,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "topics": "ybconnector1.public.orders",
       "dialect.name": "PostgreSqlDatabaseDialect",
       "table.name.format": "orders",
-      "connection.url": "jdbc:postgresql://pg:5432/postgres?user=postgres&password=postgres&sslMode=require",
+      "connection.url": "'$PG_CONNECTION_URL'",
       "auto.create": "true",
       "auto.evolve":"true",
       "insert.mode": "upsert",
@@ -20,9 +28,9 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "transforms.unwrap.type": "io.debezium.connector.yugabytedb.transforms.YBExtractNewRecordState",
       "transforms.unwrap.drop.tombstones": "false",
       "key.converter":"io.confluent.connect.avro.AvroConverter",
-      "key.converter.schema.registry.url":"http://schema-registry:8081",
+      "key.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'",
       "value.converter":"io.confluent.connect.avro.AvroConverter",
-      "value.converter.schema.registry.url":"http://schema-registry:8081"
+      "value.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'"
    }
 }'
 
@@ -36,7 +44,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "topics": "ybconnector2.public.products",
       "dialect.name": "PostgreSqlDatabaseDialect",
       "table.name.format": "products",
-      "connection.url": "jdbc:postgresql://pg:5432/postgres?user=postgres&password=postgres&sslMode=require",
+      "connection.url": "'$PG_CONNECTION_URL'",
       "auto.create": "true",
       "auto.evolve":"true",
       "insert.mode": "upsert",
@@ -47,9 +55,9 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "transforms.unwrap.type": "io.debezium.connector.yugabytedb.transforms.YBExtractNewRecordState",
       "transforms.unwrap.drop.tombstones": "false",
       "key.converter":"io.confluent.connect.avro.AvroConverter",
-      "key.converter.schema.registry.url":"http://schema-registry:8081",
+      "key.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'",
       "value.converter":"io.confluent.connect.avro.AvroConverter",
-      "value.converter.schema.registry.url":"http://schema-registry:8081"
+      "value.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'"
    }
 }'
 
@@ -63,7 +71,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "topics": "ybconnector3.public.users",
       "dialect.name": "PostgreSqlDatabaseDialect",
       "table.name.format": "users",
-      "connection.url": "jdbc:postgresql://pg:5432/postgres?user=postgres&password=postgres&sslMode=require",
+      "connection.url": "'$PG_CONNECTION_URL'",
       "auto.create": "true",
       "auto.evolve":"true",
       "insert.mode": "upsert",
@@ -74,9 +82,9 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "transforms.unwrap.type": "io.debezium.connector.yugabytedb.transforms.YBExtractNewRecordState",
       "transforms.unwrap.drop.tombstones": "false",
       "key.converter":"io.confluent.connect.avro.AvroConverter",
-      "key.converter.schema.registry.url":"http://schema-registry:8081",
+      "key.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'",
       "value.converter":"io.confluent.connect.avro.AvroConverter",
-      "value.converter.schema.registry.url":"http://schema-registry:8081"
+      "value.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'"
    }
 }'
 
@@ -90,7 +98,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "topics": "ybconnector4.public.reviews",
       "dialect.name": "PostgreSqlDatabaseDialect",
       "table.name.format": "reviews",
-      "connection.url": "jdbc:postgresql://pg:5432/postgres?user=postgres&password=postgres&sslMode=require",
+      "connection.url": "'$PG_CONNECTION_URL'",
       "auto.create": "true",
       "auto.evolve":"true",
       "insert.mode": "upsert",
@@ -101,8 +109,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
       "transforms.unwrap.type": "io.debezium.connector.yugabytedb.transforms.YBExtractNewRecordState",
       "transforms.unwrap.drop.tombstones": "false",
       "key.converter":"io.confluent.connect.avro.AvroConverter",
-      "key.converter.schema.registry.url":"http://schema-registry:8081",
+      "key.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'",
       "value.converter":"io.confluent.connect.avro.AvroConverter",
-      "value.converter.schema.registry.url":"http://schema-registry:8081"
+      "value.converter.schema.registry.url":"'$SCHEMA_REGISTRY_URL'"
    }
 }'
