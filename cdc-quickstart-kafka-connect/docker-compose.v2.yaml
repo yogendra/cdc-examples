@@ -81,7 +81,7 @@ services:
       REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_REST_PORT: 8083
       KAFKA_JMX_PORT: '9876'
-      KAFKA_OPTS: "-javaagent:/kafka/etc/jmx_prometheus_javaagent-0.17.2.jar=9876:/etc/jmx-exporter/metrics.yml"
+      # KAFKA_OPTS: "-javaagent:/kafka/etc/jmx_prometheus_javaagent-0.17.2.jar=9876:/etc/jmx-exporter/metrics.yml"
 
   ksqldb-server:
     image: confluentinc/cp-ksqldb-server:${KAFKA_VERSION}
@@ -300,22 +300,26 @@ services:
             -d "$$connector_config"
           echo .
         }
-        create_yb_source $$STREAM_ID ybconnector1 'public.orders[a-zA-Z0-9]*'
-        sleep 10
-        create_yb_source $$STREAM_ID ybconnector2 'public.products'
-        sleep 10
-        create_yb_source $$STREAM_ID ybconnector3 'public.users'
-        sleep 10
-        create_yb_source $$STREAM_ID ybconnector4 'public.reviews'
-        sleep 10
-        create_pg_sink pgconnector1 ybconnector1.public.orders orders
-        sleep 10
-        create_pg_sink pgconnector2 ybconnector2.public.products products
-        sleep 10
-        create_pg_sink pgconnector3 ybconnector3.public.users users
-        sleep 10
-        create_pg_sink pgconnector4 ybconnector4.public.reviews reviews
 
+        create_yb_source $$STREAM_ID ybconnector1 'public.orders[a-zA-Z0-9]*'
+        sleep 30
+        create_pg_sink pgconnector1 ybconnector1.public.orders orders
+        sleep 30
+
+        create_yb_source $$STREAM_ID ybconnector2 'public.products'
+        sleep 30
+        create_pg_sink pgconnector2 ybconnector2.public.products products
+        sleep 30
+
+        create_yb_source $$STREAM_ID ybconnector3 'public.users'
+        sleep 30
+        create_pg_sink pgconnector3 ybconnector3.public.users users
+        sleep 30
+
+        create_pg_sink pgconnector4 ybconnector4.public.reviews reviews
+        sleep 30
+        create_yb_source $$STREAM_ID ybconnector4 'public.reviews'
+        sleep 30
 
         echo "Put data in source YB database : PRODUCTS"
         PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/products.sql
