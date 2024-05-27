@@ -1,7 +1,23 @@
-# curl -o docker-compose.yml -sSL https://raw.githubusercontent.com/yogendra/cdc-examples/main/cdc-quickstart-kafka-connect/docker-compose.v2.yaml
-# docker compose down -v --remove-orphans
-# docker compose up -d
-# docker compose logs -f cdc-setup
+# # Download the docker compose file to local machine
+# git clone git@github.com:yogendra/cdc-examples.git cdc-examples
+# cd cdc-examples/cdc-quickstart-kafka-connect
+# # Remove any stray away instances (optional)
+# docker compose -f docker-compose.v2.yaml down -v --remove-orphans
+# # Run whole stack
+# docker compose  -f docker-compose.v2.yaml  up -d
+# # Monitor the setup and ongoing sync progress
+# docker compose  -f docker-compose.v2.yaml  logs -f cdc-setup
+# # When you start seeing the record count comparison table,
+# # On a second terminal, create a new record and see the count go up for both PG and YB
+# docker compose -f docker-compose.v2.yaml exec yugabyted-0 ysqlsh -h yugabyted-0 -d demo -c "INSERT INTO products (id, category, created_at, ean, price, rating, title, vendor) VALUES (1001,'Software','2024-05-01T00:00:00.000Z',7317365230007,0.00,5.0,'YugabyteDB Database','YugabyteDB');"
+# # cdc-setup  | -------------------------------------------------
+# # cdc-setup  | Record Type  |   YB   :   PG
+# # cdc-setup  | -------------|-----------------------------------
+# # cdc-setup  | Users        |   2500 :   2500
+# # cdc-setup  | Products     |    201 :    201
+# # cdc-setup  | Reviews      |   1112 :   1112
+# # cdc-setup  | Orders       |  18760 :  18760
+# # cdc-setup  | -------------------------------------------------
 ---
 services:
   zookeeper:
