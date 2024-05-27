@@ -55,59 +55,6 @@ services:
       SCHEMA_REGISTRY_JMX_HOSTNAME: schema-registry
       SCHEMA_REGISTRY_JMX_OPTS: "-Dcom.sun.management.jmxremote.rmi.port=39999 -Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=schema-registry"
 
-  # kafka-connect:
-  #   image: confluentinc/cp-kafka-connect:${KAFKA_VERSION}
-  #   hostname: kafka-connect
-  #   container_name: kafka-connect
-  #   restart: always
-  #   depends_on:
-  #     - zookeeper
-  #     - broker
-  #     - schema-registry
-  #   ports:
-  #     - "8083:8083"
-  #   environment:
-  #     CONNECT_BOOTSTRAP_SERVERS: 'broker:9092'
-  #     CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
-  #     CONNECT_REST_PORT: 8083
-  #     CONNECT_GROUP_ID: "connect"
-  #     CONNECT_PRODUCER_CLIENT_ID: "connect-worker-producer"
-  #     CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
-  #     CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-  #     CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
-  #     CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
-  #     CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-  #     CONNECT_STATUS_STORAGE_TOPIC: connect-status
-  #     CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-  #     CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
-  #     CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-  #     CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
-  #     CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
-  #     CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components
-  #     CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
-  #     CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
-  #     CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
-  #     CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
-  #     CONNECT_LOG4J_ROOT_LOGLEVEL: INFO,ERROR
-  #     CONNECT_TOPIC_CREATION_ENABLE: 'true'
-
-  #   command:
-  #     - bash
-  #     - -c
-  #     - |
-  #       echo "Installing connector plugins"
-  #       confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.7.4
-  #       sleep 10
-
-  #       echo "Installing yugabytedb connector"
-  #       curl -sSL "https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar" -o /etc/kafka-connect/jars/debezium-connector-yugabytedb-1.9.5.y.22.jar
-
-  #       sleep 10
-  #       #
-  #       echo "Launching Kafka Connect worker"
-  #       /etc/confluent/docker/run &
-  #       #
-  #       sleep infinity
   kafka-connect:
     image: quay.io/yugabyte/debezium-connector:latest
     platform: linux/amd64
@@ -212,26 +159,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-  # prometheus:
-  #   ports:
-  #     - 9090:9090
-  #   image: prom/prometheus
-  #   container_name: prometheus
-  #   environment:
-  #     NODE: yugabyted-0
-  #   volumes:
-  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-
-  # grafana:
-  #   build:
-  #     context: ./grafana-dashboard
-  #   container_name: grafana
-  #   ports:
-  #     - 3000:3000
-  #   links:
-  #     - prometheus
-  #   environment:
-  #     - DS_PROMETHEUS=prometheus
   cdc-setup:
     container_name: cdc-setup
     hostname: cdc-setup
@@ -244,8 +171,16 @@ services:
       yugabyted-0:
         condition: service_healthy
     environment:
-      NODE: yugabyted-0
-      MASTERS: yugabyted-0:7100
+      YB_HOST: yugabyted-0
+      YB_USER: yugabyte
+      YB_PASSWORD: ""
+      YB_DB: demo
+      YB_MASTERS: yugabyted-0:7100
+      PG_HOST: pg
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      PG_DB: postgres
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
       KAFKA_CONNECT_HOST: kafka-connect
     volumes:
     - ./:/project:ro
@@ -253,16 +188,26 @@ services:
     - bash
     - -c
     - |
-        until /home/yugabyte/postgres/bin/pg_isready -h $$NODE -t 5; do
+        until PGPASSWORD=$$YB_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$YB_HOST -t 5 -U $$YB_USER -d yugabyte ; do
             echo Wait for Yugabyted to be ready
-            sleep 2
+            sleep 5
         done
         echo "Yugabyted is ready"
 
-        /home/yugabyte/bin/ysqlsh -h $$NODE -c 'create database demo;'
-        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/schema.sql
+        until PGPASSWORD=$$PG_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$PG_HOST -p 5432 -t 5 -U $$PG_USER -d $$PG_DB ; do
+            echo Wait for Postgres to be ready
+            sleep 5
+        done
+        echo "Postgres is ready"
 
-        STREAM_ID=$$(/home/yugabyte/bin/yb-admin --master_addresses $$MASTERS create_change_data_stream ysql.demo |  sed 's/CDC Stream ID: //')
+        echo "Prepare source YugabyteDB Cluster"
+        echo "YugabyteDB: Create database demo"
+        /home/yugabyte/bin/ysqlsh -h $$YB_HOST -c 'create database $$YB_DB;'
+
+        echo "YugabyteDB: Create schema in $$YB_DB"
+        /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/schema.sql
+
+        STREAM_ID=$$(/home/yugabyte/bin/yb-admin --master_addresses $$YB_MASTERS create_change_data_stream ysql.demo |  sed 's/CDC Stream ID: //')
         echo Created Stream : $$STREAM_ID
 
         until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083 &> /dev/null ; do
@@ -275,33 +220,33 @@ services:
 
 
         echo "Put data in source YB database : PRODUCTS"
-        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/products.sql
+        PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/products.sql
         sleep 2
 
         echo "Put data in source YB database : USERS"
-        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/users.sql
+        PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/users.sql
         sleep 2
 
         echo "Put data in source YB database : REVIEWS"
-        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/reviews.sql
+        PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/reviews.sql
         sleep 2
 
         echo "Put data in source YB database : ORDERS"
-        /home/yugabyte/bin/ysqlsh -h $$NODE -d demo -f /project/scripts/orders.sql
+        PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/orders.sql
         sleep 2
 
         while true;
         do
           echo "Get a record count on source database"
-          YB_PRODUCTS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from products;')
-          YB_USERS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from users;')
-          YB_ORDERS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from orders;')
-          YB_REVIEWS=$$(/home/yugabyte/bin/ysqlsh -h $$NODE -d demo -tqX -c 'select count(id) from reviews;')
+          YB_PRODUCTS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from products;')
+          YB_USERS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from users;')
+          YB_ORDERS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from orders;')
+          YB_REVIEWS=$$(PGPASSWORD=$$YB_PASSWORD /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -tqX -c 'select count(id) from reviews;')
 
-          PG_PRODUCTS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from products;')
-          PG_USERS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from users;')
-          PG_ORDERS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from orders;')
-          PG_REVIEWS=$$(PGPASSWORD=postgres /home/yugabyte/bin/ysqlsh  -h pg -p 5432 -U postgres -d postgres -tqX -c 'select count(id) from reviews;')
+          PG_PRODUCTS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from products;')
+          PG_USERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from users;')
+          PG_ORDERS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from orders;')
+          PG_REVIEWS=$$(PGPASSWORD=$$PG_PASSWORD /home/yugabyte/bin/ysqlsh  -h $$PG_HOST -p 5432 -U $$PG_USER -d $$PG_DB -tqX -c 'select count(id) from reviews;')
           cat <<EOF
         [Compare Time : $$(date '+%Y-%m-%d %H:%m:%S.%s')]
         -------------------------------------------------
@@ -313,7 +258,7 @@ services:
         Orders       | $$YB_ORDERS : $$PG_ORDERS
         -------------------------------------------------
         EOF
-          sleep 3
+          sleep 5
         done
         tail -f /dev/null
 
