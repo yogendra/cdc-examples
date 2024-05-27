@@ -188,21 +188,30 @@ services:
     - bash
     - -c
     - |
-        until PGPASSWORD=$$YB_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$YB_HOST -t 5 -U $$YB_USER -d yugabyte ; do
-            echo Wait for Yugabyted to be ready
+        echo -n "Wait for YugabyteDB ($$YB_HOST) to be ready: ."
+        until PGPASSWORD=$$YB_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$YB_HOST -t 5 -U $$YB_USER -d yugabyte &> /dev/null; do
+            echo -n "."
             sleep 5
         done
-        echo "Yugabyted is ready"
+        echo " Ready!"
 
-        until PGPASSWORD=$$PG_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$PG_HOST -p 5432 -t 5 -U $$PG_USER -d $$PG_DB ; do
-            echo Wait for Postgres to be ready
+        echo -n "Wait for Postgres ($$PG_HOST) to be ready: ."
+        until PGPASSWORD=$$PG_PASSWORD /home/yugabyte/postgres/bin/pg_isready -h $$PG_HOST -p 5432 -t 5 -U $$PG_USER -d $$PG_DB &> /dev/null; do
+            echo -n "."
             sleep 5
         done
-        echo "Postgres is ready"
+        echo " Ready!"
+
+        echo "Wait for Kafka Connect / Debezium ($$KAFKA_CONNECT_HOST) to be ready: ."
+        until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083 &> /dev/null ; do
+            echo -n "."
+            sleep 5
+        done
+        echo "echo " Ready!""
 
         echo "Prepare source YugabyteDB Cluster"
         echo "YugabyteDB: Create database demo"
-        /home/yugabyte/bin/ysqlsh -h $$YB_HOST -c 'create database $$YB_DB;'
+        /home/yugabyte/bin/ysqlsh -h $$YB_HOST -c "create database $$YB_DB;"
 
         echo "YugabyteDB: Create schema in $$YB_DB"
         /home/yugabyte/bin/ysqlsh -h $$YB_HOST -d $$YB_DB -f /project/scripts/schema.sql
@@ -210,11 +219,6 @@ services:
         STREAM_ID=$$(/home/yugabyte/bin/yb-admin --master_addresses $$YB_MASTERS create_change_data_stream ysql.demo |  sed 's/CDC Stream ID: //')
         echo Created Stream : $$STREAM_ID
 
-        until curl -fsSL http://$$KAFKA_CONNECT_HOST:8083 &> /dev/null ; do
-            echo "Wait for kafka connect"
-            sleep 5
-        done
-        echo "Kafka Connect Ready"
         /project/deploy-sources.sh $$STREAM_ID
         /project/deploy-sinks.sh
 
