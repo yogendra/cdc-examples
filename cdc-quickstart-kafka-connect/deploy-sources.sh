@@ -12,6 +12,7 @@ SCHEMA_REGISTRY_HOST_NAME=${SCHEMA_REGISTRY_HOST_NAME:-localhost}
 SCHEMA_REGISTRY_URL="http://$SCHEMA_REGISTRY_HOST_NAME:8081",
 
 # Deploy connector 1
+echo "Deploy YB source connector: orders"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector1",
   "config": {
@@ -35,8 +36,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
   }
 }'
 
-sleep 1;
-
+sleep 5;
+echo "Deploy YB source connector: products"
 # Deploy connector 2
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector2",
@@ -60,8 +61,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
   }
 }'
 
-sleep 1;
-
+sleep 5;
+echo "Deploy YB source connector: users"
 # Deploy connector 3
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector3",
@@ -85,9 +86,10 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
   }
 }'
 
-sleep 1;
+sleep 5;
 
 # Deploy connector 4
+echo "Deploy YB source connector: reviews"
 curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" $KAFKA_CONNECT_HOST:8083/connectors/ -d '{
   "name": "ybconnector4",
   "config": {
@@ -110,4 +112,4 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
   }
 }'
 
-sleep 1;
+sleep 5;
